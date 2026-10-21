@@ -1,5 +1,5 @@
 // simplewall
-// Copyright (c) 2016-2024 Henry++
+// Copyright (c) 2016-2026 Henry++
 
 #include "global.h"
 
@@ -41,16 +41,16 @@ VOID _app_timer_set (
 	_In_ LONG64 seconds
 )
 {
-	PTP_TIMER htimer;
-	FILETIME file_time;
 	LARGE_INTEGER timestamp;
+	FILETIME file_time;
+	PTP_TIMER htimer;
 	LONG64 current_time;
 	BOOLEAN is_created = FALSE;
 	NTSTATUS status;
 
 	if (seconds <= 0)
 	{
-		_app_timer_reset (NULL, ptr_app);
+		_app_timer_reset (NULL, ptr_app, TRUE);
 	}
 	else
 	{
@@ -78,16 +78,27 @@ VOID _app_timer_set (
 
 				is_created = TRUE;
 			}
+			else
+			{
+				if (hwnd)
+				{
+					_r_show_errormessage (hwnd, L"Could not allocate timer!", NULL, status, ET_NATIVE);
+				}
+				else
+				{
+					_r_log (LOG_LEVEL_ERROR, NULL, L"TpAllocTimer", NULL, status);
+				}
+			}
 		}
 
 		if (is_created)
 		{
 			ptr_app->is_enabled = TRUE;
-			ptr_app->timer = current_time + seconds;
+			ptr_app->timer = (current_time + seconds);
 		}
 		else
 		{
-			_app_timer_reset (NULL, ptr_app);
+			_app_timer_reset (NULL, ptr_app, TRUE);
 		}
 	}
 
@@ -97,9 +108,13 @@ VOID _app_timer_set (
 
 VOID _app_timer_reset (
 	_In_opt_ HWND hwnd,
-	_Inout_ PITEM_APP ptr_app
+	_Inout_ PITEM_APP ptr_app,
+	_In_ BOOLEAN is_destroyfilters
 )
 {
+	if (is_destroyfilters && _wfp_isfiltersinstalled ())
+		_wfp_destroyfilters_array (_wfp_getenginehandle (), ptr_app->guids, DBG_ARG);
+
 	ptr_app->is_enabled = FALSE;
 	ptr_app->is_haveerrors = FALSE;
 
@@ -126,19 +141,17 @@ VOID _app_timer_remove (
 		TpReleaseTimer (current_timer);
 }
 
-VOID CALLBACK _app_timer_callback (
+VOID NTAPI _app_timer_callback (
 	_Inout_ PTP_CALLBACK_INSTANCE instance,
 	_Inout_opt_ PVOID context,
 	_Inout_ PTP_TIMER timer
 )
 {
-	HANDLE hengine;
-	HWND hwnd;
+	WCHAR buffer[0x100];
+	PR_STRING display_name;
 	PITEM_APP ptr_app;
-	PR_LIST rules;
-	PR_STRING string;
-	WCHAR buffer[256];
-	ULONG icon_id;
+	HWND hwnd;
+	ULONG icon_id = NIIF_INFO;
 	HRESULT status;
 
 	ptr_app = _app_getappitem (PtrToUlong (context));
@@ -150,46 +163,30 @@ VOID CALLBACK _app_timer_callback (
 
 	hwnd = _r_app_gethwnd ();
 
-	_app_timer_reset (hwnd, ptr_app);
+	_app_timer_reset (hwnd, ptr_app, TRUE);
 
-	hengine = _wfp_getenginehandle ();
-
-	rules = _r_obj_createlist (2, NULL);
-
-	_r_obj_addlistitem (rules, ptr_app, NULL);
-
-	_wfp_create3filters (hengine, rules, DBG_ARG, FALSE);
-
-	_app_listview_updateby_id (hwnd, ptr_app->type, PR_UPDATE_TYPE | PR_UPDATE_FORCE);
-
-	_r_obj_dereference (ptr_app);
-	_r_obj_dereference (rules);
+	if (hwnd)
+		_app_listview_updateby_id (hwnd, ptr_app->type, PR_UPDATE_TYPE | PR_UPDATE_FORCE);
 
 	_app_profile_save (hwnd);
 
 	if (_r_config_getboolean (L"IsNotificationsTimer", TRUE, NULL))
 	{
-		icon_id = NIIF_INFO;
-
 		if (!_r_config_getboolean (L"IsNotificationsSound", TRUE, NULL))
 			icon_id |= NIIF_NOSOUND;
 
-		string = _app_getappdisplayname (ptr_app, TRUE);
+		display_name = _app_getappdisplayname (ptr_app, TRUE);
 
-		_r_str_printf (
-			buffer,
-			RTL_NUMBER_OF (buffer),
-			L"%s - %s",
-			_r_app_getname (),
-			_r_obj_getstringorempty (string)
-		);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s - %s", _r_app_getname (), _r_obj_getstringordefault (display_name, L"<noname>"));
 
 		_r_tray_popup (hwnd, &GUID_TrayIcon, icon_id, buffer, _r_locale_getstring (IDS_STATUS_TIMER_DONE));
 
-		if (string)
-			_r_obj_dereference (string);
+		if (display_name)
+			_r_obj_dereference (display_name);
 	}
 
 	if (status == S_OK || status == S_FALSE)
 		CoUninitialize ();
+
+	_r_obj_dereference (ptr_app);
 }

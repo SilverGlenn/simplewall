@@ -22,7 +22,7 @@
 #pragma comment(lib, "wintrust.lib")
 
 // log
-#define DBG_ARG TEXT (__FILE__), __LINE__
+#define DBG_ARG _r_path_getbasename2 (TEXT (__FILE__)), __LINE__
 #define DBG_ARG_VAR file_name, line
 
 // guids
@@ -75,12 +75,12 @@ typedef enum _ENUM_INFO_DATA
 
 typedef enum _ENUM_INFO_DATA2
 {
-	INFO_ICON_ID,
+	INFO_ICON_ID = 0,
 	INFO_SIGNATURE_STRING, // dereference required
 	INFO_VERSION_STRING, // dereference required
 } ENUM_INFO_DATA2;
 
-#define LOG_PATH_DEFAULT L"%USERPROFILE%\\" APP_NAME_SHORT L".log"
+#define LOG_PATH_DEFAULT L"%USERPROFILE%\\" APP_NAME_SHORT L".csv"
 #define LOG_VIEWER_DEFAULT L"%SystemRoot%\\notepad.exe"
 #define LOG_SIZE_LIMIT_DEFAULT _r_calc_kilobytes2bytes (1)
 
@@ -93,6 +93,7 @@ typedef enum _ENUM_INFO_DATA2
 #define PATH_SVCHOST L"\\svchost.exe"
 #define PATH_WUSVC L"\\wusvc.exe"
 
+#define WINDOWSSPYBLOCKER_TITLE L"Author: <a href=\"%s\">WindowsSpyBlocker</a> - block spying and tracking on Windows systems."
 #define WINDOWSSPYBLOCKER_URL L"https://github.com/crazy-max/WindowsSpyBlocker"
 
 #define SZ_TAB L"    "
@@ -114,10 +115,6 @@ typedef enum _ENUM_INFO_DATA2
 #define SZ_LOG_BODY L"\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
 	L"\"%s\",\"%s\",\"#%" TEXT (PRIu64) L"\",\"%s\",\"%s\"" SZ_CRLF
 
-#define SZ_WARNING_ME L"If you disallow this, you cannot use resolve network addresses option. Continue?"
-#define SZ_WARNING_SVCHOST L"Be careful, through service host (svchost.exe)" \
-	L"internet traffic can let out through unexpected ways. Continue?"
-
 #define SZ_HELP L"\"simplewall.exe -install\" - enable filtering." SZ_CRLF \
 	L"\"simplewall.exe -install -temp\" - enable filtering until reboot." SZ_CRLF \
 	L"\"simplewall.exe -install -silent\" - enable filtering without prompt." SZ_CRLF \
@@ -130,15 +127,16 @@ typedef enum _ENUM_INFO_DATA2
 #define DIVIDER_RULE_RANGE L'-'
 #define DIVIDER_TRIM SZ_CRLF L" "
 
-#define BACKUP_HOURS_PERIOD _r_calc_hours2seconds (4) // make backup every X hour(s) (default)
+#define BACKUP_HOURS_PERIOD _r_calc_hours2seconds (4) // made backup every X hour(s) (default)
 
-#define LEN_IP_MAX 68
-#define MAP_CACHE_MAX 900 // limit for caching hashtable
+#define LEN_IP_MAX 0x44
+#define MAP_CACHE_MAX 0x0384 // limit for caching hashtable
 
 #define TRANSACTION_TIMEOUT 9000
 
 // ui
 #define ICONS_MENU 6
+#define LANG_SUBMENU 2
 #define LANG_MENU 7
 #define NOTIFICATIONS_ID 4
 #define LOGGING_ID 5
@@ -147,26 +145,23 @@ typedef enum _ENUM_INFO_DATA2
 #define REBAR_TOOLBAR_ID 0
 #define REBAR_SEARCH_ID 1
 
-#define LV_HIDDEN_GROUP_ID 13
+#define LV_HIDDEN_GROUP_ID GENERAL_ID
 
 #define STATUSBAR_PARTS_COUNT 3
 
 // notifications
 #define NOTIFY_TIMER_SAFETY_TIMEOUT 900
-#define NOTIFY_TIMER_SAFETY_ID 666
-
 #define NOTIFY_TIMEOUT_DEFAULT 60 // sec.
-
 #define NOTIFY_SOUND_NAME L"MailBeep"
 
 // default colors
-#define LV_COLOR_INVALID RGB(255, 125, 148)
-#define LV_COLOR_SPECIAL RGB(255, 255, 170)
-#define LV_COLOR_SIGNED RGB(175, 228, 163)
-#define LV_COLOR_PICO RGB(51, 153, 255)
-#define LV_COLOR_SYSTEM RGB(151, 196, 251)
-#define LV_COLOR_CONNECTION RGB(255, 168, 242)
-#define LV_COLOR_UNDELETE RGB(211, 211, 211)
+#define LV_COLOR_INVALID RGB(0xFF, 0x7C, 0x94)
+#define LV_COLOR_SPECIAL RGB(0xFF, 0xFF, 0xAA)
+#define LV_COLOR_SIGNED RGB(0xAE, 0xE4, 0xA2)
+#define LV_COLOR_PICO RGB(0x32, 0x98, 0xFF)
+#define LV_COLOR_SYSTEM RGB(0x96, 0xC4, 0xFA)
+#define LV_COLOR_CONNECTION RGB(0xFF, 0xA8, 0xF2)
+#define LV_COLOR_UNDELETE RGB(0xD4, 0xD4, 0xD4)
 
 // memory limitation for 1 rule
 #define RULE_NAME_CCH_MAX 0x0040 // 64
@@ -174,18 +169,16 @@ typedef enum _ENUM_INFO_DATA2
 
 typedef struct _STATIC_DATA
 {
-	WCHAR windows_dir_buffer[256];
 	R_STRINGREF windows_dir;
 
 	GUID session_key;
 
 	PR_STRING search_string;
-
-	PR_STRING my_path;
 	PR_STRING ntoskrnl_path;
 	PR_STRING svchost_path;
-	PR_STRING wusvc_path;
 	PR_STRING system_path;
+	PR_STRING wusvc_path;
+	PR_STRING my_path;
 
 	PR_BYTE service_wdiservicehost_sid;
 	PR_BYTE service_policyagent_sid;
@@ -217,7 +210,6 @@ typedef struct _STATIC_DATA
 	PSID builtin_admins_sid;
 
 	volatile HWND hnotification;
-	volatile HICON htray_icon;
 	volatile HANDLE hnetevent;
 	volatile HANDLE hlogfile;
 	volatile LONG log_id;
@@ -251,6 +243,53 @@ typedef struct _PROFILE_DATA
 	LONG64 profile_internal_timestamp;
 } PROFILE_DATA, *PPROFILE_DATA;
 
+typedef struct _ITEM_LOG
+{
+	union
+	{
+		IN6_ADDR remote_addr6;
+		IN_ADDR remote_addr;
+	} DUMMYUNIONNAME;
+
+	union
+	{
+		IN6_ADDR local_addr6;
+		IN_ADDR local_addr;
+	} DUMMYUNIONNAME2;
+
+	PR_STRING protocol_str;
+	PR_STRING filter_name;
+	PR_STRING layer_name;
+	PR_STRING username;
+	PR_STRING path;
+
+	volatile PR_STRING remote_addr_str;
+	volatile PR_STRING local_addr_str;
+	volatile PR_STRING remote_host_str;
+	volatile PR_STRING local_host_str;
+
+	LONG64 timestamp;
+	UINT64 filter_id;
+
+	ULONG app_hash;
+
+	volatile LONG log_id;
+
+	FWP_DIRECTION direction;
+	ADDRESS_FAMILY af;
+
+	UINT16 remote_port;
+	UINT16 local_port;
+	UINT8 protocol;
+
+	BOOLEAN is_myprovider;
+	BOOLEAN is_blocklist;
+	BOOLEAN is_loopback;
+	BOOLEAN is_custom;
+	BOOLEAN is_system;
+	BOOLEAN is_allow;
+} ITEM_LOG, *PITEM_LOG;
+
 typedef struct _ITEM_APP
 {
 	PR_ARRAY guids;
@@ -262,7 +301,7 @@ typedef struct _ITEM_APP
 	PR_STRING comment;
 	PR_STRING hash;
 
-	PVOID notification; // PITEM_LOG
+	PITEM_LOG notification;
 	PR_BYTE bytes; // service - PSECURITY_DESCRIPTOR / uwp - PSID (win8+)
 
 	PTP_TIMER htimer;
@@ -291,15 +330,11 @@ typedef struct _ITEM_APP_INFO
 {
 	PR_STRING signature_info;
 	PR_STRING version_info;
-
 	PR_STRING path;
 
 	ULONG app_hash;
-
 	LONG icon_id;
-
 	ENUM_TYPE_DATA type;
-
 	INT listview_id;
 
 	BOOLEAN is_loaded;
@@ -317,21 +352,11 @@ typedef struct _ITEM_RULE
 	PR_HASHTABLE apps;
 	PR_ARRAY guids;
 
-	PR_STRING name;
-	PR_STRING comment;
+	PR_STRING protocol_str;
 	PR_STRING rule_remote;
 	PR_STRING rule_local;
-	PR_STRING protocol_str;
-
-	struct
-	{
-		ULONG is_enabled_default : 1;
-		ULONG is_forservices : 1;
-		ULONG is_haveerrors : 1;
-		ULONG is_readonly : 1;
-		ULONG is_enabled : 1;
-		ULONG spare_bits : 27;
-	} DUMMYSTRUCTNAME;
+	PR_STRING comment;
+	PR_STRING name;
 
 	union
 	{
@@ -345,8 +370,19 @@ typedef struct _ITEM_RULE
 		} DUMMYSTRUCTNAME2;
 	} DUMMYUNIONNAME;
 
-	ENUM_TYPE_DATA type;
+	struct
+	{
+		ULONG is_enabled_default : 1;
+		ULONG is_forservice : 1;
+		ULONG is_fordriver : 1;
+		ULONG is_haveerrors : 1;
+		ULONG is_readonly : 1;
+		ULONG is_enabled : 1;
+		ULONG spare_bits : 26;
+	} DUMMYSTRUCTNAME2;
 
+	ULONG rule_hash;
+	ENUM_TYPE_DATA type;
 	FWP_ACTION_TYPE action;
 
 	UINT8 profile; // reserved ffu!
@@ -375,15 +411,13 @@ typedef struct _ITEM_NETWORK
 		IN6_ADDR local_addr6;
 	} DUMMYUNIONNAME2;
 
-	PR_STRING path;
-
 	volatile PR_STRING local_addr_str;
 	volatile PR_STRING remote_addr_str;
-
 	volatile PR_STRING local_host_str;
 	volatile PR_STRING remote_host_str;
 
 	PR_STRING protocol_str;
+	PR_STRING path;
 
 	ULONG app_hash;
 	ULONG state;
@@ -394,72 +428,34 @@ typedef struct _ITEM_NETWORK
 
 	UINT16 remote_port;
 	UINT16 local_port;
-
 	UINT8 protocol;
 
+	BOOLEAN is_stats_initialized;
+	BOOLEAN is_stats_enabled;
 	BOOLEAN is_connection;
+
+	volatile LONG64 download_speed;
+	volatile LONG64 upload_speed;
+	volatile LONG64 download_total;
+	volatile LONG64 upload_total;
+
+	ULONG64 last_bytes_in;
+	ULONG64 last_bytes_out;
+	ULONG64 last_stats_tick;
+	ULONG64 udp_created;
+
+	volatile LONG traffic_error;
 } ITEM_NETWORK, *PITEM_NETWORK;
-
-typedef struct _ITEM_LOG
-{
-	union
-	{
-		IN_ADDR remote_addr;
-		IN6_ADDR remote_addr6;
-	} DUMMYUNIONNAME;
-
-	union
-	{
-		IN_ADDR local_addr;
-		IN6_ADDR local_addr6;
-	} DUMMYUNIONNAME2;
-
-	PR_STRING path;
-	PR_STRING filter_name;
-	PR_STRING layer_name;
-	PR_STRING username;
-	PR_STRING protocol_str;
-
-	volatile PR_STRING local_addr_str;
-	volatile PR_STRING remote_addr_str;
-
-	volatile PR_STRING local_host_str;
-	volatile PR_STRING remote_host_str;
-
-	LONG64 timestamp;
-
-	UINT64 filter_id;
-
-	ULONG app_hash;
-
-	volatile LONG log_id;
-
-	FWP_DIRECTION direction;
-
-	ADDRESS_FAMILY af;
-
-	UINT16 remote_port;
-	UINT16 local_port;
-
-	UINT8 protocol;
-
-	BOOLEAN is_allow;
-	BOOLEAN is_loopback;
-	BOOLEAN is_blocklist;
-	BOOLEAN is_custom;
-	BOOLEAN is_system;
-	BOOLEAN is_myprovider;
-} ITEM_LOG, *PITEM_LOG;
 
 typedef struct _ITEM_STATUS
 {
-	ULONG_PTR apps_count;
-	ULONG_PTR apps_timer_count;
-	ULONG_PTR apps_unused_count;
-	ULONG_PTR rules_count;
-	ULONG_PTR rules_global_count;
 	ULONG_PTR rules_predefined_count;
+	ULONG_PTR apps_unused_count;
+	ULONG_PTR apps_timer_count;
+	ULONG_PTR rules_global_count;
 	ULONG_PTR rules_user_count;
+	ULONG_PTR rules_count;
+	ULONG_PTR apps_count;
 } ITEM_STATUS, *PITEM_STATUS;
 
 typedef struct _ITEM_CONTEXT
@@ -481,8 +477,8 @@ typedef struct _ITEM_CONTEXT
 
 typedef struct _ITEM_COLOR
 {
-	PR_STRING config_name;
 	PR_STRING config_value;
+	PR_STRING config_name;
 	COLORREF default_clr;
 	COLORREF new_clr;
 	ULONG locale_id;
@@ -501,17 +497,17 @@ typedef struct _ITEM_ADDRESS
 
 		struct
 		{
-			FWP_RANGE range;
+			FWP_RANGE0 range;
 
-			UINT8 addr6_low[FWP_V6_ADDR_SIZE];
 			UINT8 addr6_high[FWP_V6_ADDR_SIZE];
+			UINT8 addr6_low[FWP_V6_ADDR_SIZE];
 		} DUMMYSTRUCTNAME;
 	} DUMMYUNIONNAME;
 
-	UINT16 port;
-
-	ENUM_TYPE_DATA type;
 	NET_ADDRESS_FORMAT format;
+	ENUM_TYPE_DATA type;
+
+	UINT16 port;
 
 	BOOLEAN is_range;
 } ITEM_ADDRESS, *PITEM_ADDRESS;
@@ -521,13 +517,13 @@ typedef struct _ITEM_LOG_CALLBACK
 	union
 	{
 		const FWP_BYTE_ARRAY16 *remote_addr6;
-		ULONG_PTR remote_addr4;
+		ULONG remote_addr4;
 	} DUMMYUNIONNAME;
 
 	union
 	{
 		const FWP_BYTE_ARRAY16 *local_addr6;
-		ULONG_PTR local_addr4;
+		ULONG local_addr4;
 	} DUMMYUNIONNAME2;
 
 	FILETIME timestamp;
@@ -539,16 +535,15 @@ typedef struct _ITEM_LOG_CALLBACK
 
 	FWP_IP_VERSION version;
 
-	UINT32 flags;
 	UINT32 direction;
-
+	UINT32 flags;
 	UINT16 remote_port;
 	UINT16 local_port;
 	UINT16 layer_id;
 	UINT8 protocol;
 
-	BOOLEAN is_allow;
 	BOOLEAN is_loopback;
+	BOOLEAN is_allow;
 } ITEM_LOG_CALLBACK, *PITEM_LOG_CALLBACK;
 
 typedef struct _ITEM_TAB_CONTEXT
@@ -556,3 +551,70 @@ typedef struct _ITEM_TAB_CONTEXT
 	INT listview_id;
 	INT locale_id;
 } ITEM_TAB_CONTEXT, *PITEM_TAB_CONTEXT;
+
+typedef struct _UDP_ENDPOINT
+{
+	BYTE address[0x10];
+	ULONG64 created; // UDP owner table bind timestamp, in FILETIME units
+	ULONG scope_id;
+	ULONG pid;
+	ADDRESS_FAMILY af;
+	USHORT port; // host byte order
+} UDP_ENDPOINT, *PUDP_ENDPOINT;
+
+typedef struct UDP_ENTRY
+{
+	struct UDP_ENTRY *next;
+	UDP_ENDPOINT endpoint;
+	ULONG64 since;
+	ULONG64 received;
+	ULONG64 sent;
+	ULONG error_code;
+	ULONG epoch;
+	BOOLEAN is_observed;
+} UDP_ENTRY, *PUDP_ENTRY;
+
+typedef struct UDP_AFD_SOCKET
+{
+	struct UDP_AFD_SOCKET *next;
+	UDP_ENDPOINT endpoint;
+	ULONG64 handle;
+	BOOLEAN is_bound;
+	BOOLEAN is_unsupported;
+} UDP_AFD_SOCKET, *PUDP_AFD_SOCKET;
+
+typedef struct _UDP_TRACE_PROPERTIES
+{
+	EVENT_TRACE_PROPERTIES properties;
+	WCHAR name[0x40];
+} UDP_TRACE_PROPERTIES, *PUDP_TRACE_PROPERTIES;
+
+#define UDP_SESSION_SEMAPHORE L"Global\\simplewall-UDP-owner"
+#define UDP_SESSION_NAME L"simplewall-UDP"
+#define UDP_MAX_ENDPOINTS 0x2000
+#define UDP_BUCKETS 0x100
+
+typedef struct _SW_UDP_STATS
+{
+	RTL_SRWLOCK control_lock;
+	RTL_SRWLOCK lock;
+	UDP_ENTRY *buckets[UDP_BUCKETS];
+	UDP_AFD_SOCKET *sockets[UDP_BUCKETS]; // owned by the ETW consumer thread
+	HANDLE hthread;
+	HANDLE hguard;
+	TRACEHANDLE hsession;
+	TRACEHANDLE hconsumer;
+	ULONG socket_count;
+	ULONG count;
+	ULONG epoch;
+	volatile LONG error_code;
+	volatile LONG stopping;
+	BOOLEAN is_owns_guard;
+} SW_UDP_STATS, *PSW_UDP_STATS;
+
+typedef struct _UDP_SNAPSHOT
+{
+	ULONG64 received;
+	ULONG64 sent;
+	ULONG error_code; // nonzero means totals must not be presented as complete
+} UDP_SNAPSHOT, *PUDP_SNAPSHOT;

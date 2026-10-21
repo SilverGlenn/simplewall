@@ -1,18 +1,26 @@
 // simplewall
-// Copyright (c) 2019-2025 Henry++
+// Copyright (c) 2019-2026 Henry++
 
 #pragma once
 
+#include "udpstats.h"
+
 typedef struct _ITEM_NETWORK_CONTEXT
 {
-	HWND hwnd;
-
 	R_QUEUED_LOCK lock_network;
 	R_QUEUED_LOCK lock_checker;
 
 	PR_HASHTABLE network_ptr;
 	PR_HASHTABLE checker_ptr;
+
+	SW_UDP_STATS *udp_stats;
+
+	HWND hwnd;
 } ITEM_NETWORK_CONTEXT, *PITEM_NETWORK_CONTEXT;
+
+PITEM_NETWORK_CONTEXT _app_network_getcontext ();
+
+VOID _app_network_stop ();
 
 VOID _app_network_initialize (
 	_In_ HWND hwnd

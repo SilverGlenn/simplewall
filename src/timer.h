@@ -1,5 +1,5 @@
 // simplewall
-// Copyright (c) 2016-2024 Henry++
+// Copyright (c) 2016-2026 Henry++
 
 #pragma once
 
@@ -17,14 +17,15 @@ VOID _app_timer_set (
 
 VOID _app_timer_reset (
 	_In_opt_ HWND hwnd,
-	_Inout_ PITEM_APP ptr_app
+	_Inout_ PITEM_APP ptr_app,
+	_In_ BOOLEAN is_destroyfilters
 );
 
 VOID _app_timer_remove (
 	_Inout_ PITEM_APP ptr_app
 );
 
-VOID CALLBACK _app_timer_callback (
+VOID NTAPI _app_timer_callback (
 	_Inout_ PTP_CALLBACK_INSTANCE instance,
 	_Inout_opt_ PVOID context,
 	_Inout_ PTP_TIMER timer
